@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_jokkoo/controller/jokkoo_controller.dart';
 import 'package:flutter_jokkoo/model/jokkoo_rez.dart';
+import 'package:flutter_jokkoo/model/jokkoojang.dart';
 import 'package:flutter_jokkoo/view/components/custom_elevated_button.dart';
+import 'package:flutter_jokkoo/view/components/jokkoojang_item.dart';
 import 'package:flutter_jokkoo/view/components/jokkoojang_rez_header.dart';
 import 'package:get/get.dart';
 
@@ -69,12 +71,75 @@ class JokkooRezPage extends StatelessWidget {
                   );
                 }
 
-                RezState state = RezState.ABLE;
+                return Obx(() {
+                  // 00:00 부터 시작하는 10분단위 현재 아이템의 분
+                  int absMin = (index - index ~/ 7 - 1) *
+                      10; // 현재 인덱스에서 범례(시간축)빼주고 1빼서 0부터시작하게함
 
-                return GestureDetector(
-                  onTap: () {},
-                  child: Container(color: state.color),
-                );
+                  RezState state = RezState.ABLE;
+
+                  // 현재 예약안에 포함되어있는지
+                  if (_controller.stAbsTime.value != null &&
+                      _controller.endAbsTime.value != null) {
+                    if (_controller.stAbsTime.value! <= absMin &&
+                        _controller.endAbsTime.value! > absMin) {
+                      state = RezState.CHOOSED;
+                    }
+                  } else if (_controller.endAbsTime.value == null) {
+                    if ((_controller.stAbsTime.value ?? -1) == absMin)
+                      state = RezState.CHOOSED;
+                  }
+
+                  // 기존 예약안에 포함되어있는지
+                  if (state == RezState.ABLE) {
+                    int cnt = _controller.jokkoojang.value.rezs!.length;
+                    for (int i = 0; i < cnt; i++) {
+                      JokkooRez rz = _controller.jokkoojang.value.rezs![i];
+                      int stAbsMin = rz.stTime.toAbsMin;
+                      int endAbsMin = rz.endTime.toAbsMin;
+                      if (stAbsMin <= absMin && endAbsMin > absMin) {
+                        state = RezState.EXIST;
+                        break;
+                      }
+                    }
+                  }
+
+                  return GestureDetector(
+                    onTap: () {
+                      if (state == RezState.EXIST) {
+                        Get.snackbar("예약불가", "이미 예약된 시간입니다.");
+                        return;
+                      }
+
+                      if (_controller.stAbsTime.value == null ||
+                          _controller.stAbsTime.value != null &&
+                              _controller.endAbsTime.value != null) {
+                        //현재 아이템의 시간을 시작시간으로 || 모두가 차있다면 다시 시작시간으로!
+                        _controller.stAbsTime.value = absMin;
+                        _controller.endAbsTime.value = null;
+                        return;
+                      }
+                      if (_controller.endAbsTime.value == null) {
+                        //현재 아이템의 시간을 종료시간을
+                        // 단 해당 시간범위내에 예약이 있는지 체크
+                        int cnt = _controller.jokkoojang.value.rezs!.length;
+                        for (int i = 0; i < cnt; i++) {
+                          JokkooRez rz = _controller.jokkoojang.value.rezs![i];
+                          int stAbsMin = rz.stTime.toAbsMin;
+                          int endAbsMin = rz.endTime.toAbsMin;
+                          if (_controller.stAbsTime.value! <= stAbsMin &&
+                              endAbsMin <= absMin) {
+                            Get.snackbar("예약불가", "해당 구간 내 예약일정이 있습니다.");
+                            return;
+                          }
+                        }
+                        _controller.endAbsTime.value = absMin + 10;
+                        return;
+                      }
+                    },
+                    child: Container(color: state.color),
+                  );
+                });
               },
             ),
           ),
